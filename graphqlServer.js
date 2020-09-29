@@ -111,6 +111,7 @@ const typeDefs = gql`
 			published: Int!
 			genres: [String!]!
 		): Book!
+		editAuthor(name: String!, setBornTo: Int!): Author
 	}
 `;
 
@@ -145,6 +146,20 @@ const resolvers = {
 			if (!authors.find((author) => author.name === args.author))
 				authors.push({ name: args.author, id: uuid() });
 			return newBook;
+		},
+		editAuthor: (root, args) => {
+			let authorToBeUpdated = authors.find(
+				(author) => author.name === args.name
+			);
+			if (!authorToBeUpdated) return null;
+			authorToBeUpdated = {
+				...authorToBeUpdated,
+				born: args.setBornTo,
+			};
+			authors = authors.map((author) =>
+				author.name === authorToBeUpdated.name ? authorToBeUpdated : author
+			);
+			return authorToBeUpdated;
 		},
 	},
 };
