@@ -35,7 +35,7 @@ const Authors = (props) => {
 	);
 };
 
-const ALL_AUTHORS = gql`
+export const ALL_AUTHORS = gql`
 	query {
 		allAuthors {
 			name

@@ -36,7 +36,7 @@ const Books = (props) => {
 	);
 };
 
-const ALL_BOOKS = gql`
+export const ALL_BOOKS = gql`
 	query {
 		allBooks {
 			title
