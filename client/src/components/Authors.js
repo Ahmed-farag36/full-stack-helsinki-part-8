@@ -43,11 +43,14 @@ const Authors = (props) => {
 			</table>
 			<h3>Set birthyear</h3>
 			<form onSubmit={handleBirthdayChange}>
-				<input
-					value={author}
-					onChange={(e) => setAuthor(e.target.value)}
-					placeholder="Author name"
-				/>
+				<select value={author} onChange={(e) => setAuthor(e.target.value)}>
+					<option>Select an author</option>
+					{data.allAuthors.map((a) => (
+						<option key={a.id} value={a.name}>
+							{a.name}
+						</option>
+					))}
+				</select>
 				<input
 					type="number"
 					value={birthday}
@@ -72,7 +75,7 @@ export const ALL_AUTHORS = gql`
 `;
 
 const EDIT_AUTHOR = gql`
-	mutation ADD_BOOK($name: String!, $setBornTo: Int!) {
+	mutation EDIT_AUTHOR($name: String!, $setBornTo: Int!) {
 		editAuthor(name: $name, setBornTo: $setBornTo) {
 			id
 			name
