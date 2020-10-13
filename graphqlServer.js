@@ -1,88 +1,58 @@
-const { ApolloServer, gql } = require("apollo-server");
-const { v1: uuid } = require("uuid");
+const { ApolloServer, gql, UserInputError } = require("apollo-server");
+const { connect, Schema, model } = require("mongoose");
 
-let authors = [
+connect(
+	"mongodb+srv://ahmedfarag:D2aD45f43T6BHSml@cluster0.h0r7q.mongodb.net/fs-helsinki?retryWrites=true&w=majority",
 	{
-		name: "Robert Martin",
-		id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
-		born: 1952,
-	},
-	{
-		name: "Martin Fowler",
-		id: "afa5b6f0-344d-11e9-a414-719c6709cf3e",
-		born: 1963,
-	},
-	{
-		name: "Fyodor Dostoevsky",
-		id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
-		born: 1821,
-	},
-	{
-		name: "Joshua Kerievsky", // birthyear not known
-		id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
-	},
-	{
-		name: "Sandi Metz", // birthyear not known
-		id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
-	},
-];
+		useUnifiedTopology: true,
+		useFindAndModify: false,
+		useCreateIndex: true,
+		useNewUrlParser: true,
+	}
+)
+	.then(() => {
+		console.log("connected to DB");
+	})
+	.catch((err) => {
+		console.log("failed to connect to DB", err);
+	});
 
-/*
- * Saattaisi olla järkevämpää assosioida kirja ja sen tekijä tallettamalla kirjan yhteyteen tekijän nimen sijaan tekijän id
- * Yksinkertaisuuden vuoksi tallennamme kuitenkin kirjan yhteyteen tekijän nimen
- */
+const authorSchema = new Schema({
+	name: {
+		type: String,
+		required: true,
+		unique: true,
+		minlength: 4,
+	},
+	born: {
+		type: Number,
+	},
+});
 
-let books = [
-	{
-		title: "Clean Code",
-		published: 2008,
-		author: "Robert Martin",
-		id: "afa5b6f4-344d-11e9-a414-719c6709cf3e",
-		genres: ["refactoring"],
+const bookSchema = new Schema({
+	title: {
+		type: String,
+		required: true,
+		minlength: 2,
 	},
-	{
-		title: "Agile software development",
-		published: 2002,
-		author: "Robert Martin",
-		id: "afa5b6f5-344d-11e9-a414-719c6709cf3e",
-		genres: ["agile", "patterns", "design"],
+	published: {
+		type: Number,
+		required: true,
 	},
-	{
-		title: "Refactoring, edition 2",
-		published: 2018,
-		author: "Martin Fowler",
-		id: "afa5de00-344d-11e9-a414-719c6709cf3e",
-		genres: ["refactoring"],
+	author: {
+		type: Schema.Types.ObjectId,
+		ref: "Author",
 	},
-	{
-		title: "Refactoring to patterns",
-		published: 2008,
-		author: "Joshua Kerievsky",
-		id: "afa5de01-344d-11e9-a414-719c6709cf3e",
-		genres: ["refactoring", "patterns"],
-	},
-	{
-		title: "Practical Object-Oriented Design, An Agile Primer Using Ruby",
-		published: 2012,
-		author: "Sandi Metz",
-		id: "afa5de02-344d-11e9-a414-719c6709cf3e",
-		genres: ["refactoring", "design"],
-	},
-	{
-		title: "Crime and punishment",
-		published: 1866,
-		author: "Fyodor Dostoevsky",
-		id: "afa5de03-344d-11e9-a414-719c6709cf3e",
-		genres: ["classic", "crime"],
-	},
-	{
-		title: "The Demon ",
-		published: 1872,
-		author: "Fyodor Dostoevsky",
-		id: "afa5de04-344d-11e9-a414-719c6709cf3e",
-		genres: ["classic", "revolution"],
-	},
-];
+	genres: [
+		{
+			type: String,
+			required: true,
+		},
+	],
+});
+
+const Author = model("Author", authorSchema);
+const Book = model("Book", bookSchema);
 
 const typeDefs = gql`
 	type Author {
@@ -94,7 +64,7 @@ const typeDefs = gql`
 	type Book {
 		id: ID!
 		title: String!
-		author: String!
+		author: Author!
 		published: Int!
 		genres: [String!]!
 	}
@@ -118,18 +88,14 @@ const typeDefs = gql`
 const resolvers = {
 	Author: {
 		bookCount: (root) => {
-			let count = 0;
-			for (const book of books) {
-				if (book.author === root.name) ++count;
-			}
-			return count;
+			return Book.find({}, {});
 		},
 	},
 	Query: {
-		bookCount: () => books.length,
-		authorCount: () => authors.length,
+		bookCount: () => Book.countDocuments(),
+		authorCount: () => Author.countDocuments(),
 		allBooks: (root, { author, genre }) => {
-			if (!author && !genre) return books;
+			if (!author && !genre) return Book.find();
 			return books.filter((book) => {
 				if (author && genre)
 					return book.author === author && book.genres.includes(genre);
@@ -137,15 +103,18 @@ const resolvers = {
 				return book.genres.includes(genre);
 			});
 		},
-		allAuthors: () => authors,
+		allAuthors: () => Author.find(),
 	},
 	Mutation: {
 		addBook: (root, args) => {
-			const newBook = { ...args, id: uuid() };
-			books.push(newBook);
-			if (!authors.find((author) => author.name === args.author))
-				authors.push({ name: args.author, id: uuid() });
-			return newBook;
+			try {
+				const author = Author.findOne({ name: args.author });
+				return new Book({ ...args, author: author.id }).save();
+			} catch (error) {
+				throw new UserInputError(error, {
+					invalidArgs: args,
+				});
+			}
 		},
 		editAuthor: (root, args) => {
 			let authorToBeUpdated = authors.find(
